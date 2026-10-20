@@ -74,6 +74,7 @@ def authors_agree(reference_text, authors):
 
 SHORT_TITLE_WORDS = 4         # a title this short can match an unrelated reference by chance
 NEAR_EXACT = 0.98
+PREPRINT_TYPES = {"posted-content", "preprint"}      # an arXiv copy carries the date of its LATEST version, not of the first posting
 
 
 def judge_match(reference_text, record):
@@ -97,7 +98,8 @@ def judge_match(reference_text, record):
 
     year = record.get("year")
     reference_years = sorted({int(y) for y in _YEAR.findall(reference_text or "")})
-    if year and reference_years and min(abs(year - y) for y in reference_years) > 1:
+    if (year and reference_years and (record.get("type") or "") not in PREPRINT_TYPES
+            and min(abs(year - y) for y in reference_years) > 1):
         return ("check", similarity,
                 f"Same title, but CrossRef says {year} and the reference says "
                 f"{', '.join(map(str, reference_years))} -- possibly another version of the paper.")

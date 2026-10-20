@@ -59,6 +59,21 @@ python run_validate_all.py proceedings_results.json you@example.com
 Then open `proceedings_results_validated.json` in the app. Verifying about 32,000 references takes several hours; the
 run can be stopped and started again without repeating any lookup.
 
+## Use it from your own code
+
+```python
+from refcheck.api import validate_reference_texts
+
+results = validate_reference_texts(
+    ["Ashish Vaswani, Noam Shazeer, et al. 2017. Attention is all you need. In NeurIPS."], "you@example.com")
+print(results[0]["status"], results[0]["found_in"], results[0]["record_kind"])    # found CrossRef preprint
+```
+
+Each result has `status` (found, check, not_found, error), where it was found, the kind of record, the matched title,
+authors, year and DOI, and, for not-found references, a `probable_kind` (web page, book, thesis, report, software, or
+a paper that is not indexed) and the `closest_rejected_record` that was turned down. Pass the same `caches` dict to
+every call to avoid repeating lookups.
+
 ## How well does it work?
 
 **Extraction**, measured with `run_answer_key.py` (the true bibliography from the arXiv LaTeX source):
@@ -81,15 +96,18 @@ flagged anyway).
 
 | | Count | Share |
 |---|---|---|
-| Found | 1,694 | 75.9% |
-| Check | 181 | 8.1% |
+| Found | 1,702 | 76.2% |
+| Check | 173 | 7.7% |
 | Not found | 358 | 16.0% |
 | Error | 0 | 0% |
 
+Found by: arXiv ID 563, CrossRef search 1,139.
+
 Matching rules (word comparison, no similarity model, no guessing): the record's title must match the reference text
 word for word at 0.90 or more to count as *Found*; 0.65 to 0.90 is *Check*. A short or inexact title must also share an
-author with the reference, and the year may differ by at most 1, otherwise the result is *Check*. CrossRef is asked
-for its top 5 records and the best title match is kept.
+author with the reference, and the year may differ by at most 1 (not applied to arXiv copies, whose date is that of
+their latest version), otherwise the result is *Check*. CrossRef is asked for its top 5 records and the best title
+match is kept.
 
 *Not found* does not mean a reference is wrong. It means none of the sources holds a record with that title: workshop
 proceedings (CEUR-WS), JMLR/PMLR papers, web pages, software, reports, books and theses are common causes. Reading a
