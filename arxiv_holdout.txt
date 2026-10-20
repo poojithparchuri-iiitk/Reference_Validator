@@ -1,0 +1,31 @@
+1409.3215   # Seq2Seq
+1503.02531  # Distilling knowledge
+1506.01497  # Faster R-CNN
+1411.4038   # FCN
+1505.04597  # U-Net
+1603.04467  # TensorFlow
+1706.06083  # adversarial robustness
+1711.05101  # AdamW
+1806.03822  # SQuAD 2.0
+1907.10529  # SpanBERT
+1911.02116  # XLM-R
+2002.05709  # SimCLR
+2004.05150  # Longformer
+2009.03300  # MMLU
+2106.09685  # LoRA
+2107.03374  # Codex
+2204.02311  # PaLM
+2210.03629  # ReAct
+2212.08073  # Constitutional AI
+2305.14314  # QLoRA
+2307.08691  # FlashAttention-2
+1801.00862  # NISQ
+1411.4028   # QAOA
+1602.03837  # GW150914
+1207.7214   # Higgs, ATLAS
+1807.06209  # Planck 2018
+1502.01589  # Planck 2015
+1512.00567  # Inception v3
+1608.04644  # Carlini-Wagner
+1710.10903  # graph attention networks
+1609.02907  # GCN

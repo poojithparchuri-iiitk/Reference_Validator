@@ -1,0 +1,30 @@
+1706.03762   # Transformer
+1810.04805   # BERT
+1512.03385   # ResNet
+2005.14165   # GPT-3
+1910.13461   # BART
+1907.11692   # RoBERTa
+1301.3781    # word2vec
+1409.0473    # Bahdanau attention
+1412.6980    # Adam
+1502.03167   # BatchNorm
+1406.2661    # GAN
+1409.1556    # VGG
+2010.11929   # ViT
+1910.10683   # T5
+2302.13971   # LLaMA
+2203.02155   # InstructGPT
+2201.11903   # chain of thought
+1906.08237   # XLNet
+2103.00020   # CLIP
+2006.11239   # DDPM
+1312.6114    # VAE
+1802.05365   # ELMo
+2404.01265   # distributed quantum computing review
+2509.02674   # Munich quantum software stack
+2408.03712   # NetQIR
+2212.10820   # quantum repeaters
+2212.10609   # distributed quantum computing survey
+1604.08880   # human activity recognition
+2310.19878   # remote entanglement tutorial
+1808.06709   # lattice surgery
