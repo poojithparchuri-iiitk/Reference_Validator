@@ -1,9 +1,9 @@
 # Reference Validator
 
 A Streamlit app that reads a paper, or a whole conference proceedings PDF, splits it into papers, extracts each
-paper's reference list, and checks every reference against arXiv, DOI registries (CrossRef, DataCite), CrossRef
-search and, as a second chance, OpenAlex. It also runs an *extraction audit* that flags lists that look incomplete or
-wrongly split. The app is generic: any paper or proceedings PDF works. COLING 2025 was used as the large test case.
+paper's reference list, and checks every reference against arXiv, DOI registries (CrossRef, DataCite) and CrossRef
+search. It also runs an *extraction audit* that flags lists that look incomplete or wrongly split. The app is generic:
+any paper or proceedings PDF works. COLING 2025 was used as the large test case.
 
 ## What it does
 
@@ -14,9 +14,12 @@ wrongly split. The app is generic: any paper or proceedings PDF works. COLING 20
 3. **Audits the extraction**: numbering gaps, lost citations (cited in the text but absent from the list), merged or
    duplicated entries, very short or very long entries, suspiciously few references.
 4. **Validates each reference** (optional, needs internet): exact arXiv-ID and DOI lookups first, then a CrossRef
-   title search; references still not found can be tried on OpenAlex. Result per reference: *Found*, *Check*,
-   *Not found*, or *Error*, with the evidence shown.
-5. **Exports** every reference with its label and the record found (title, authors, venue, type, year, DOI, source,
+   title search (top 5 records, best title match). Result per reference: *Found*, *Check*, *Not found*, or *Error*,
+   with the evidence shown: where it was found and as what kind of record (journal article, conference paper, book,
+   preprint ...).
+5. **Explains "Not found"**: each such reference is labelled from its wording as probably a web page, book, thesis,
+   report, software, or a paper that these databases do not index.
+6. **Exports** every reference with its label and the record found (title, authors, venue, type, year, DOI, source,
    title similarity) as CSV, and the full results as JSON.
 
 ## Install and run
@@ -42,7 +45,6 @@ first 50 COLING 2025 papers with all 2,233 references verified.
 | `run_batch.py <folder>` | Extraction + audit over every PDF in a folder, with a summary report |
 | `run_export_all.py <folder>` | Same, saved as one JSON file the app can open |
 | `run_validate_all.py <results.json> <email> [n]` | Verifies references (arXiv ID, DOI, CrossRef) for all papers or the first n. Resumable; failed lookups are retried |
-| `run_openalex.py <validated.json> <key> [max]` | Asks OpenAlex about the references still *not found*. Needs a free OpenAlex API key (about 1,000 searches per day) |
 | `run_answer_key.py <ids.txt> <email>` | Measures extraction accuracy on arXiv papers, using the LaTeX bibliography as the answer key |
 | `run_inspect.py <pdf> [--paper N]` | Shows why one paper's list was read the way it was |
 | `run_lookup.py`, `run_selftest.py` | Lookup checks |
@@ -52,11 +54,10 @@ Typical use for a proceedings volume cut into several PDFs:
 ```
 python run_export_all.py samples\proceedings
 python run_validate_all.py proceedings_results.json you@example.com
-python run_openalex.py proceedings_results_validated.json YOUR_KEY
 ```
 
-Then open the last file in the app. Verifying about 32,000 references takes several hours; the run can be stopped and
-started again without repeating any lookup.
+Then open `proceedings_results_validated.json` in the app. Verifying about 32,000 references takes several hours; the
+run can be stopped and started again without repeating any lookup.
 
 ## How well does it work?
 
@@ -80,23 +81,28 @@ flagged anyway).
 
 | | Count | Share |
 |---|---|---|
-| Found | 1,697 | 76.0% |
-| Check | 161 | 7.2% |
-| Not found | 375 | 16.8% |
+| Found | 1,694 | 75.9% |
+| Check | 181 | 8.1% |
+| Not found | 358 | 16.0% |
 | Error | 0 | 0% |
 
-Found by: CrossRef search 1,124, arXiv ID 563, OpenAlex 10. OpenAlex, asked only about the 430 references that CrossRef
-and arXiv could not confirm, turned 55 of them into found (10) or check (45). The rest are mostly work that none of the
-sources index: workshop proceedings (CEUR-WS), JMLR/PMLR papers, web pages, reports and theses. The matcher also
-correctly rejects look-alike records, for example a record by the same authors with a different title.
+Matching rules (word comparison, no similarity model, no guessing): the record's title must match the reference text
+word for word at 0.90 or more to count as *Found*; 0.65 to 0.90 is *Check*. A short or inexact title must also share an
+author with the reference, and the year may differ by at most 1, otherwise the result is *Check*. CrossRef is asked
+for its top 5 records and the best title match is kept.
+
+*Not found* does not mean a reference is wrong. It means none of the sources holds a record with that title: workshop
+proceedings (CEUR-WS), JMLR/PMLR papers, web pages, software, reports, books and theses are common causes. Reading a
+sample of 15 showed no extraction errors; the matcher also correctly rejects look-alike records, for example a record by
+the same authors with a different title.
 
 ## Limitations
 
 - *Found* means a source holds a record with a matching title. It is evidence that a reference exists, not proof that
   it is cited correctly.
-- *Not found* does not mean a reference is wrong. Websites, theses, technical reports, workshop papers and some
-  proceedings are not covered by the databases used.
-- OpenAlex needs a free API key since February 2026; the free budget is about 1,000 searches per day.
+- The comparison is by words, not meaning: a paper that was retitled between its preprint and published version, or a
+  translated title, shows up as *Check* or *Not found*.
+- The accuracy of the Found / Not found decisions themselves has not been measured against a hand-labelled sample.
 - Reference styles outside the list above (for example astronomy's `Surname, I., Title. Year, Journal` with no period)
   are split poorly. Organisations as authors written in lower case, and typos in a paper's own bibliography, can
   merge or split entries; the audit usually flags these.
@@ -106,5 +112,5 @@ correctly rejects look-alike records, for example a record by the same authors w
 
 ## Privacy
 
-PDFs are processed on your computer. Only reference text, titles, DOIs and arXiv IDs are sent to arXiv, CrossRef,
-DataCite and OpenAlex when you validate.
+PDFs are processed on your computer. Only reference text, titles, DOIs and arXiv IDs are sent to arXiv, CrossRef and
+DataCite when you validate.

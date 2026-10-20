@@ -16,6 +16,7 @@ from urllib.parse import quote
 import streamlit as st
 
 from refcheck.kinds import reference_kind
+from refcheck.labels import found_in, record_kind
 from refcheck.pipeline import analyze_pdf, count_statuses, lookup_plan, validate_papers
 
 PAPERS_PER_PAGE = 50     # papers opened below at once; a selector pages through the rest
@@ -31,7 +32,7 @@ table.refs { width: 100%; border-collapse: collapse; font-size: 1.05rem; line-he
 table.refs th { text-align: left; padding: 10px 12px; border-bottom: 2px solid rgba(128,128,128,0.5); }
 table.refs td { padding: 10px 12px; border-bottom: 1px solid rgba(128,128,128,0.3); vertical-align: top; }
 table.refs td.num { width: 3rem; white-space: nowrap; }
-table.refs td.status { width: 8.5rem; white-space: nowrap; }
+table.refs td.status { width: 10.5rem; }
 table.refs td.match { width: 36%; }
 table.refs td.pages, table.refs td.count { width: 11rem; white-space: nowrap; }
 .badge { padding: 3px 12px; border-radius: 14px; font-weight: 600; font-size: 0.95rem; white-space: nowrap; }
@@ -95,8 +96,12 @@ def references_table(refs, flagged=None):
         if str(r["number"]) in flagged:                # the audit found something odd about this entry
             tip = html.escape(" / ".join(flagged[str(r["number"])]), quote=True)
             number += f" <span title='{tip}' style='cursor:help'>&#9888;</span>"
+        where = ""
+        if r["status"] in ("found", "check"):                      # say where it was found, and as what
+            parts = [x for x in (found_in(r.get("source")), record_kind(r.get("type"), r.get("source"))) if x]
+            where = f"<br><small>{html.escape(' | '.join(parts))}</small>" if parts else ""
         rows.append(f"<tr><td class='num'>{number}</td>"
-                    f"<td class='status'><span class='badge {css}'>{label}</span></td>"
+                    f"<td class='status'><span class='badge {css}'>{label}</span>{where}</td>"
                     f"<td>{html.escape(r['text'])}</td><td class='match'>{evidence_cell(r)}</td></tr>")
     return ("<table class='refs'><thead><tr><th>#</th><th>Result</th><th>Reference (from the PDF)</th>"
             "<th>What we found</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
@@ -121,14 +126,16 @@ def results_csv(analysis):
     """One row per reference, for Excel (with a byte-order mark so accents display correctly)."""
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(["paper_no", "file", "paper_title", "ref_no", "reference", "status", "matched_title", "matched_authors",
-                     "matched_venue", "matched_type", "year", "doi", "source", "title_similarity", "note", "probable_kind",
-                     "audit_warning"])
+    writer.writerow(["paper_no", "file", "paper_title", "ref_no", "reference", "status", "found_in", "record_kind", "matched_title",
+                     "matched_authors", "matched_venue", "matched_type", "year", "doi", "source", "title_similarity", "note",
+                     "probable_kind", "audit_warning"])
     for p in analysis["papers"]:
         flagged = p["audit"]["flagged_refs"]
         for r in p["references"]:
             similarity = r.get("title_similarity")
             writer.writerow([p["paper_index"] + 1, p.get("file", ""), p["title"], r["number"], r["text"], r["status"],
+                             found_in(r.get("source")) if r["status"] in ("found", "check") else "",
+                             record_kind(r.get("type"), r.get("source")) if r["status"] in ("found", "check") else "",
                              r.get("match_title") or "", "; ".join(r.get("authors") or []), r.get("venue") or "",
                              r.get("type") or "", r.get("year") or "", r.get("doi") or "", r.get("source") or "",
                              "" if similarity is None else similarity, r.get("note") or "",
@@ -263,6 +270,10 @@ if st.session_state.get("export_key") != export_key:                    # build 
 d1, d2, _ = st.columns([2, 2, 4])
 d1.download_button("Download all references (CSV)", st.session_state["export_csv"], "references.csv", "text/csv")
 d2.download_button("Download full results (JSON)", st.session_state["export_json"], "results.json", "application/json")
+found_as = Counter(record_kind(r.get("type"), r.get("source")) or "type not stated" for p in papers for r in p["references"]
+                   if r["status"] == "found")
+if found_as:
+    st.caption("**Found as:** " + ", ".join(f"{name} {n}" for name, n in found_as.most_common()) + ".")
 confirmed_by = Counter(r["source"].split(" (")[0] for p in papers for r in p["references"] if r["status"] == "found")
 if confirmed_by:
     st.caption("**Confirmed by:** " + ", ".join(f"{name} {n}" for name, n in confirmed_by.most_common())

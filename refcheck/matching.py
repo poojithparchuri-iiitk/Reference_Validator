@@ -14,6 +14,7 @@ different paper, and the band in between was mixed.
 """
 import difflib
 import re
+import unicodedata
 
 MATCH_AT = 0.90
 CHECK_AT = 0.65
@@ -46,6 +47,35 @@ def title_similarity(reference_text, crossref_title):
     return best
 
 
+def _plain(text):
+    """Lower case, accents removed."""
+    return "".join(c for c in unicodedata.normalize("NFKD", (text or "").lower()) if not unicodedata.combining(c))
+
+
+def authors_agree(reference_text, authors):
+    """
+    True when at least one author of the record also appears in the reference text (family name = last word of the
+    name). True as well when the record lists no authors, because then there is nothing to compare.
+    """
+    if not authors:
+        return True
+    plain = _plain(reference_text)
+    words = set(_WORD.findall(plain))
+    squashed = re.sub(r"[^a-z0-9]", "", plain)               # a PDF sometimes glues names together: "DiazGaliano"
+    for author in authors:
+        tokens = _WORD.findall(_plain(author))
+        if not tokens:
+            continue
+        family = tokens[-1]
+        if (len(family) >= 4 and family in squashed) or family in words:
+            return True
+    return False
+
+
+SHORT_TITLE_WORDS = 4         # a title this short can match an unrelated reference by chance
+NEAR_EXACT = 0.98
+
+
 def judge_match(reference_text, record):
     """
     record: a dict from crossref.check_reference() with status "found".
@@ -58,6 +88,12 @@ def judge_match(reference_text, record):
         return "different", similarity, "CrossRef's closest record has a different title."
     if similarity < MATCH_AT:
         return "check", similarity, "The title only partly matches -- compare by eye."
+
+    # A short or not-quite-exact title can match an unrelated reference by chance: then an author must agree too.
+    risky = similarity < NEAR_EXACT or len(_tokens(title)) <= SHORT_TITLE_WORDS
+    if risky and not authors_agree(reference_text, record.get("authors")):
+        return ("check", similarity,
+                "The title matches, but none of the record's authors appears in the reference -- compare by eye.")
 
     year = record.get("year")
     reference_years = sorted({int(y) for y in _YEAR.findall(reference_text or "")})

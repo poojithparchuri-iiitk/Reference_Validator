@@ -15,7 +15,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote
-
+from refcheck.matching import CHECK_AT, authors_agree, title_similarity
 import requests
 
 API_URL = "https://api.crossref.org/works"
@@ -82,10 +82,20 @@ def _record(status, item=None, error=None):
             "score": item.get("score", 0) if status == "found" else (0 if status == "not_found" else None),
             "error": error}
 
+def _best_item(text, items):
+    """
+    Of the records CrossRef returned, the one whose title best matches the reference text; a record whose authors also
+    appear in the reference wins over one whose authors do not. On a tie the higher-ranked record stays.
+    """
+    def key(item):
+        record = _record("found", item)
+        similarity = title_similarity(text, record["title"] or "")
+        return (similarity >= CHECK_AT and authors_agree(text, record["authors"]), similarity)
+    return max(items, key=key)
 
 def check_reference(text, mailto="", limiter=None, max_retries=3, timeout=15):
     """Look up ONE reference. Returns a dict: status, title, authors, year, venue, publisher, type, doi, score, error."""
-    params = {"query.bibliographic": text[:MAX_QUERY_CHARS], "rows": 1}
+    params = {"query.bibliographic": text[:MAX_QUERY_CHARS], "rows": 5}
     agent = "proceedings-reference-checker/0.1"
     if mailto:
         params["mailto"] = mailto
@@ -109,7 +119,7 @@ def check_reference(text, mailto="", limiter=None, max_retries=3, timeout=15):
             items = response.json()["message"]["items"]
             if not items:
                 return _record("not_found")
-            return _record("found", items[0])
+            return _record("found", _best_item(text,items))
         except Exception as exc:                      # network error, bad JSON, ...
             last_error = str(exc)
             time.sleep(0.5)
