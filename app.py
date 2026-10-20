@@ -15,6 +15,7 @@ from urllib.parse import quote
 
 import streamlit as st
 
+from refcheck.kinds import reference_kind
 from refcheck.pipeline import analyze_pdf, count_statuses, lookup_plan, validate_papers
 
 PAPERS_PER_PAGE = 50     # papers opened below at once; a selector pages through the rest
@@ -50,6 +51,10 @@ def evidence_cell(r):
         return html.escape(r.get("error") or r.get("note") or "")
     lines = []
     has_record = bool(r.get("match_title") or r.get("doi"))
+    if r["status"] == "not_found":
+        kind = reference_kind(r["text"])
+        lines.append("<small><b>" + (f"Probably a {kind}, not a paper in these databases." if kind
+                                      else "Probably a paper that these databases do not index.") + "</b></small>")
     if has_record:
         if r["status"] == "not_found":
             lines.append("<small><i>Closest record found -- a different paper:</i></small>")
@@ -117,7 +122,8 @@ def results_csv(analysis):
     out = io.StringIO()
     writer = csv.writer(out)
     writer.writerow(["paper_no", "file", "paper_title", "ref_no", "reference", "status", "matched_title", "matched_authors",
-                     "matched_venue", "matched_type", "year", "doi", "source", "title_similarity", "note", "audit_warning"])
+                     "matched_venue", "matched_type", "year", "doi", "source", "title_similarity", "note", "probable_kind",
+                     "audit_warning"])
     for p in analysis["papers"]:
         flagged = p["audit"]["flagged_refs"]
         for r in p["references"]:
@@ -126,6 +132,7 @@ def results_csv(analysis):
                              r.get("match_title") or "", "; ".join(r.get("authors") or []), r.get("venue") or "",
                              r.get("type") or "", r.get("year") or "", r.get("doi") or "", r.get("source") or "",
                              "" if similarity is None else similarity, r.get("note") or "",
+                             (reference_kind(r["text"]) or "paper (not indexed)") if r["status"] == "not_found" else "",
                              " / ".join(flagged.get(str(r["number"]), []))])
     return ("\ufeff" + out.getvalue()).encode("utf-8")
 
@@ -181,6 +188,9 @@ if validate or extract_only:
 if validate:
     analysis = st.session_state["analysis"]
     caches = st.session_state.setdefault(f"caches_v{DATA_VERSION}", {})
+    for table in caches.values():                          # a failed lookup says nothing about the reference: ask again
+        for key in [k for k, v in table.items() if isinstance(v, dict) and v.get("status") == "error"]:
+            del table[key]
     plan = lookup_plan(analysis, caches)
     rate = 3 if mailto.strip() else 1
     seconds = -(-plan["arxiv_ids"] // 40) * 3 + plan["dois"] / rate + plan["texts"] / rate
@@ -240,6 +250,11 @@ else:
     c4.metric("Papers with warnings", len(papers) - passed)
     st.info("The references have only been **extracted**, not checked against any database."
             + (" Click **Validate references** to check them." if mode == MODE_PDF else ""))
+kinds_of_not_found = Counter(reference_kind(r["text"]) or "paper (not indexed)" for p in papers for r in p["references"]
+                             if r["status"] == "not_found")
+if kinds_of_not_found:
+    st.caption("**Not found, by kind** (a guess from the wording): "
+               + ", ".join(f"{name} {n}" for name, n in kinds_of_not_found.most_common()) + ".")
 export_key = (st.session_state["analysis_key"], counts["found"], counts["check"], counts["not_found"], counts["error"])
 if st.session_state.get("export_key") != export_key:                    # build the files once, not at every click
     st.session_state["export_csv"] = results_csv(analysis)
